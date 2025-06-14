@@ -43,6 +43,31 @@ def get_firestore_client():
         _initialize_services()
     return db
 
+def get_agent_card(db, agent_id):
+    """
+    Retrieves the agent card for a given agent ID.
+    
+    Args:
+        db: Firestore client
+        agent_id: The agent ID to get the card for
+    
+    Returns:
+        Agent card dictionary or None if not found
+    """
+    try:
+        card_ref = db.collection('agents').document(agent_id).collection('agent_cards').document('card')
+        card_doc = card_ref.get()
+        
+        if card_doc.exists:
+            agent_card = card_doc.to_dict()
+            agent_card['agent_id'] = agent_id  # Add agent_id for reference
+            return agent_card
+        else:
+            return None
+    except Exception as e:
+        print(f"Error retrieving agent card for {agent_id}: {e}")
+        return None
+
 def comprehensive_agent_search(
     capabilities: Optional[List[str]] = None,
     max_price: Optional[float] = None,
@@ -54,8 +79,8 @@ def comprehensive_agent_search(
     partial_match: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    Search for agents based on capabilities, pricing, karma, and other criteria.
-    Supports both exact and partial matching for capabilities.
+    Search for agents based on capabilities, pricing, karma, and other criteria from main agent documents.
+    Returns agent cards in Google's agent2agent protocol format.
     
     Args:
         capabilities: List of required capabilities for exact or partial matching
@@ -68,15 +93,14 @@ def comprehensive_agent_search(
         partial_match: If True, uses partial matching for capabilities
     
     Returns:
-        List of agent dictionaries matching the criteria
+        List of agent card dictionaries in agent2agent protocol format
     """
     try:
         db = get_firestore_client()
         agents_ref = db.collection('agents')
         
-        # Start building the query
+        # Start building the query on main agent documents
         query = agents_ref
-        exact_match_results = []
         
         # First, try exact matches for capabilities if specified
         if capabilities and not partial_match:
@@ -99,16 +123,16 @@ def comprehensive_agent_search(
         query_limit = limit * 3 if (capabilities and partial_match) else limit
         query = query.limit(query_limit)
         
-        # Execute query
+        # Execute query on main agent documents
         results = query.stream()
         
-        # Process results
-        agents = []
+        # Process results and get agent cards
+        agent_cards = []
         for doc in results:
             agent_data = doc.to_dict()
             agent_data['agent_id'] = doc.id
             
-            # Apply capability partial matching if enabled
+            # Apply capability partial matching if enabled (using main document capabilities)
             if capabilities and partial_match:
                 agent_capabilities = agent_data.get('capabilities', [])
                 capability_matches = 0
@@ -132,11 +156,11 @@ def comprehensive_agent_search(
                 if capability_matches == 0:
                     continue
                     
-                # Add match score and details for ranking
+                # Store match info for potential use
                 agent_data['capability_match_score'] = capability_matches
                 agent_data['matched_capabilities'] = matched_capabilities
             
-            # Apply name filter with partial matching
+            # Apply name filter with partial matching (using main document fields)
             if agent_name_contains:
                 agent_name = agent_data.get('agent_name', '')
                 description = agent_data.get('description', '')
@@ -146,19 +170,31 @@ def comprehensive_agent_search(
                     agent_name_contains.lower() not in description.lower()):
                     continue
             
-            agents.append(agent_data)
+            # Get the agent card for this agent (return format)
+            agent_card = get_agent_card(db, doc.id)
+            if agent_card:
+                # Add search metadata to the agent card for reference
+                agent_card['search_metadata'] = {
+                    'capability_match_score': agent_data.get('capability_match_score'),
+                    'matched_capabilities': agent_data.get('matched_capabilities'),
+                    'searched_karma': agent_data.get('karma'),
+                    'searched_pricing': agent_data.get('agent_pricing'),
+                    'searched_name': agent_data.get('agent_name'),
+                    'searched_capabilities': agent_data.get('capabilities')
+                }
+                agent_cards.append(agent_card)
         
-        # Sort by capability match score if partial matching was used
+        # Sort by capability match score if partial matching was used (using search metadata)
         if capabilities and partial_match:
-            agents.sort(key=lambda x: (
-                x.get('capability_match_score', 0),
-                x.get('karma', 0) if sort_by == 'karma' else -x.get('agent_pricing', 0)
+            agent_cards.sort(key=lambda x: (
+                x.get('search_metadata', {}).get('capability_match_score', 0),
+                x.get('search_metadata', {}).get('searched_karma', 0) if sort_by == 'karma' else -x.get('search_metadata', {}).get('searched_pricing', 0)
             ), reverse=True)
         
         # Limit final results
-        agents = agents[:limit]
+        agent_cards = agent_cards[:limit]
         
-        return agents
+        return agent_cards
         
     except Exception as e:
         print(f"Error searching agents: {e}")
@@ -166,22 +202,32 @@ def comprehensive_agent_search(
 
 def get_agent_by_id(agent_id: str) -> Optional[Dict[str, Any]]:
     """
-    Retrieve a specific agent by its ID.
+    Retrieve a specific agent card by its ID.
+    Returns the full agent card in Google's agent2agent protocol format.
     
     Args:
         agent_id: The unique identifier of the agent
     
     Returns:
-        Agent dictionary or None if not found
+        Agent card dictionary in agent2agent protocol format or None if not found
     """
     try:
         db = get_firestore_client()
+        
+        # Get the agent card directly
+        agent_card = get_agent_card(db, agent_id)
+        if agent_card:
+            return agent_card
+        
+        # Fallback: if no agent card exists, try to get basic agent data
         doc_ref = db.collection('agents').document(agent_id)
         doc = doc_ref.get()
         
         if doc.exists:
             agent_data = doc.to_dict()
             agent_data['agent_id'] = doc.id
+            # Return basic data with a note that it's not in agent card format
+            agent_data['_note'] = "Agent card not available, returning basic agent data"
             return agent_data
         else:
             return None
@@ -197,8 +243,8 @@ def get_top_agents_by_capability(
     partial_match: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    Get the top agents with a specific capability.
-    Supports both exact and partial matching for capabilities.
+    Get the top agent cards with a specific capability by searching main agent documents.
+    Returns agent cards in Google's agent2agent protocol format.
     
     Args:
         capability: The specific capability to search for
@@ -207,14 +253,14 @@ def get_top_agents_by_capability(
         partial_match: If True, includes partial matches for capabilities
     
     Returns:
-        List of top agents with the specified capability
+        List of top agent cards with the specified capability in agent2agent protocol format
     """
     try:
         db = get_firestore_client()
         agents_ref = db.collection('agents')
         
         if not partial_match:
-            # Use exact matching with composite indices
+            # Use exact matching with composite indices on main agent documents
             if sort_by == "karma":
                 query = agents_ref.where('capabilities', 'array_contains', capability).order_by('karma', direction=firestore.Query.DESCENDING).limit(limit)
             elif sort_by == "agent_pricing":
@@ -231,15 +277,16 @@ def get_top_agents_by_capability(
             else:
                 query = agents_ref.limit(query_limit)
         
+        # Execute query on main agent documents
         results = query.stream()
         
-        agents = []
+        agent_cards = []
         for doc in results:
             agent_data = doc.to_dict()
             agent_data['agent_id'] = doc.id
             
             if partial_match:
-                # Check for partial capability matches
+                # Check for partial capability matches using main document capabilities
                 agent_capabilities = agent_data.get('capabilities', [])
                 match_found = False
                 match_score = 0
@@ -263,22 +310,35 @@ def get_top_agents_by_capability(
                 if not match_found:
                     continue
                     
+                # Store match info
                 agent_data['capability_match_score'] = match_score
                 agent_data['matched_capability'] = matched_capability
             
-            agents.append(agent_data)
+            # Get the agent card for this agent (return format)
+            agent_card = get_agent_card(db, doc.id)
+            if agent_card:
+                # Add search metadata to the agent card for reference
+                agent_card['search_metadata'] = {
+                    'capability_match_score': agent_data.get('capability_match_score'),
+                    'matched_capability': agent_data.get('matched_capability'),
+                    'search_capability': capability,
+                    'searched_karma': agent_data.get('karma'),
+                    'searched_pricing': agent_data.get('agent_pricing'),
+                    'searched_capabilities': agent_data.get('capabilities')
+                }
+                agent_cards.append(agent_card)
         
-        # Sort by match score if partial matching was used
+        # Sort by match score if partial matching was used (using search metadata)
         if partial_match:
-            agents.sort(key=lambda x: (
-                x.get('capability_match_score', 0),
-                x.get('karma', 0) if sort_by == 'karma' else -x.get('agent_pricing', 0)
+            agent_cards.sort(key=lambda x: (
+                x.get('search_metadata', {}).get('capability_match_score', 0),
+                x.get('search_metadata', {}).get('searched_karma', 0) if sort_by == 'karma' else -x.get('search_metadata', {}).get('searched_pricing', 0)
             ), reverse=True)
         
         # Limit final results
-        agents = agents[:limit]
+        agent_cards = agent_cards[:limit]
         
-        return agents
+        return agent_cards
         
     except Exception as e:
         print(f"Error getting top agents for capability {capability}: {e}")
@@ -290,8 +350,8 @@ def get_best_value_agents(
     partial_match: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    Get agents with the best value (high karma, low price).
-    Supports both exact and partial matching for capabilities.
+    Get agent cards with the best value (high karma, low price) by searching main agent documents.
+    Returns agent cards in Google's agent2agent protocol format.
     
     Args:
         capability: Optional capability filter
@@ -299,31 +359,32 @@ def get_best_value_agents(
         partial_match: If True, includes partial matches for capabilities
     
     Returns:
-        List of best value agents
+        List of best value agent cards in agent2agent protocol format
     """
     try:
         db = get_firestore_client()
         agents_ref = db.collection('agents')
         
         if capability and not partial_match:
-            # Use exact matching with composite index
+            # Use exact matching with composite index on main agent documents
             query = agents_ref.where('capabilities', 'array_contains', capability)
         else:
             # For partial matching or no capability filter, get more results
             query = agents_ref
         
-        # Sort by karma (desc) then by pricing (asc) for best value
+        # Sort by karma (desc) then by pricing (asc) for best value using main document fields
         query_limit = limit * 3 if (capability and partial_match) else limit
         query = query.order_by('karma', direction=firestore.Query.DESCENDING).order_by('agent_pricing', direction=firestore.Query.ASCENDING).limit(query_limit)
         
+        # Execute query on main agent documents
         results = query.stream()
         
-        agents = []
+        agent_cards = []
         for doc in results:
             agent_data = doc.to_dict()
             agent_data['agent_id'] = doc.id
             
-            # Apply capability filtering with partial matching if enabled
+            # Apply capability filtering with partial matching if enabled (using main document capabilities)
             if capability and partial_match:
                 agent_capabilities = agent_data.get('capabilities', [])
                 match_found = False
@@ -348,24 +409,39 @@ def get_best_value_agents(
                 if not match_found:
                     continue
                     
+                # Store match info
                 agent_data['capability_match_score'] = match_score
                 agent_data['matched_capability'] = matched_capability
             
-            # Calculate value score (karma per token)
-            agent_data['value_score'] = agent_data.get('karma', 0) / max(agent_data.get('agent_pricing', 0.01), 0.01)
-            agents.append(agent_data)
+            # Calculate value score (karma per token) using main document fields
+            value_score = agent_data.get('karma', 0) / max(agent_data.get('agent_pricing', 0.01), 0.01)
+            
+            # Get the agent card for this agent (return format)
+            agent_card = get_agent_card(db, doc.id)
+            if agent_card:
+                # Add search metadata to the agent card for reference
+                agent_card['search_metadata'] = {
+                    'capability_match_score': agent_data.get('capability_match_score'),
+                    'matched_capability': agent_data.get('matched_capability'),
+                    'value_score': value_score,
+                    'search_capability': capability,
+                    'searched_karma': agent_data.get('karma'),
+                    'searched_pricing': agent_data.get('agent_pricing'),
+                    'searched_capabilities': agent_data.get('capabilities')
+                }
+                agent_cards.append(agent_card)
         
-        # Sort by capability match score and value if partial matching was used
+        # Sort by capability match score and value if partial matching was used (using search metadata)
         if capability and partial_match:
-            agents.sort(key=lambda x: (
-                x.get('capability_match_score', 0),
-                x.get('value_score', 0)
+            agent_cards.sort(key=lambda x: (
+                x.get('search_metadata', {}).get('capability_match_score', 0),
+                x.get('search_metadata', {}).get('value_score', 0)
             ), reverse=True)
         
         # Limit final results
-        agents = agents[:limit]
+        agent_cards = agent_cards[:limit]
         
-        return agents
+        return agent_cards
         
     except Exception as e:
         print(f"Error getting best value agents: {e}")

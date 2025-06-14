@@ -166,9 +166,177 @@ def get_sample_agents():
         }
     ]
 
+def generate_agent_card(agent_data):
+    """
+    Generates an agent card following Google's agent2agent protocol format.
+    
+    Args:
+        agent_data: The original agent data dictionary
+    
+    Returns:
+        Dictionary following agent2agent protocol format
+    """
+    # Map capabilities to skills with examples
+    skills = []
+    capability_mapping = {
+        "data_analysis": {
+            "name": "Data Analysis & Insights",
+            "description": "Performs comprehensive data analysis, statistical modeling, and generates actionable business insights from complex datasets.",
+            "tags": ["analytics", "statistics", "data", "insights", "reporting"],
+            "examples": [
+                "Analyze sales data to identify trends and forecast future performance",
+                "Perform customer segmentation analysis based on behavioral data"
+            ]
+        },
+        "sql": {
+            "name": "SQL Database Operations",
+            "description": "Executes complex SQL queries, optimizes database performance, and manages data extraction and transformation tasks.",
+            "tags": ["database", "sql", "queries", "data extraction", "optimization"],
+            "examples": [
+                "Extract customer purchase history from multiple joined tables",
+                "Optimize slow-running queries for better performance"
+            ]
+        },
+        "content_creation": {
+            "name": "Content Creation & Writing",
+            "description": "Creates engaging, high-quality content for various platforms including blogs, social media, marketing materials, and documentation.",
+            "tags": ["writing", "content", "marketing", "copywriting", "creative"],
+            "examples": [
+                "Write a compelling blog post about emerging technology trends",
+                "Create engaging social media content for a product launch campaign"
+            ]
+        },
+        "web_scraping": {
+            "name": "Web Data Extraction",
+            "description": "Extracts structured and unstructured data from websites, handles dynamic content, and manages large-scale data collection operations.",
+            "tags": ["scraping", "data collection", "automation", "web", "extraction"],
+            "examples": [
+                "Extract product prices and reviews from e-commerce websites",
+                "Collect real estate listings data from multiple property websites"
+            ]
+        },
+        "image_recognition": {
+            "name": "Computer Vision & Image Analysis",
+            "description": "Analyzes images and videos to detect objects, recognize faces, classify scenes, and extract visual information using deep learning models.",
+            "tags": ["computer vision", "image processing", "object detection", "AI", "machine learning"],
+            "examples": [
+                "Identify and classify objects in retail inventory photos",
+                "Analyze medical images to detect anomalies and assist diagnosis"
+            ]
+        },
+        "code_generation": {
+            "name": "Code Generation & Development",
+            "description": "Generates high-quality code in multiple programming languages based on natural language specifications and requirements.",
+            "tags": ["programming", "code generation", "development", "automation", "software"],
+            "examples": [
+                "Generate a Python script for data processing based on requirements",
+                "Create a React component for user authentication with validation"
+            ]
+        },
+        "financial_analysis": {
+            "name": "Financial Analysis & Forecasting",
+            "description": "Provides comprehensive financial analysis, market research, investment strategies, and predictive modeling for financial markets.",
+            "tags": ["finance", "investment", "forecasting", "analysis", "markets"],
+            "examples": [
+                "Analyze portfolio performance and suggest optimization strategies",
+                "Forecast stock market trends using technical and fundamental analysis"
+            ]
+        },
+        "chatbot": {
+            "name": "Conversational AI & Support",
+            "description": "Provides intelligent conversational interfaces for customer support, FAQ handling, and automated assistance across multiple channels.",
+            "tags": ["chatbot", "customer service", "conversation", "automation", "support"],
+            "examples": [
+                "Handle customer inquiries and provide instant support responses",
+                "Guide users through complex product setup processes"
+            ]
+        },
+        "translation": {
+            "name": "Multi-Language Translation",
+            "description": "Provides accurate translation services across multiple languages while preserving context, tone, and cultural nuances.",
+            "tags": ["translation", "multilingual", "localization", "language", "communication"],
+            "examples": [
+                "Translate business documents while maintaining professional tone",
+                "Localize mobile app content for different regional markets"
+            ]
+        },
+        "text_summarization": {
+            "name": "Text Analysis & Summarization",
+            "description": "Analyzes large volumes of text to extract key insights, generate summaries, and identify important themes and patterns.",
+            "tags": ["summarization", "text analysis", "research", "insights", "processing"],
+            "examples": [
+                "Summarize lengthy research papers into key findings and conclusions",
+                "Extract main points from customer feedback and reviews"
+            ]
+        }
+    }
+    
+    # Generate skills based on agent capabilities
+    for i, capability in enumerate(agent_data.get("capabilities", [])[:3]):  # Limit to 3 skills
+        if capability in capability_mapping:
+            skill_info = capability_mapping[capability]
+            skill = {
+                "id": f"{capability}-{i+1}",
+                "name": skill_info["name"],
+                "description": skill_info["description"],
+                "tags": skill_info["tags"],
+                "examples": skill_info["examples"],
+                "inputModes": ["application/json", "text/plain"],
+                "outputModes": ["application/json", "text/plain"]
+            }
+            skills.append(skill)
+    
+    # Generate provider organization name
+    agent_name = agent_data.get("agent_name", "Unknown Agent")
+    provider_org = f"{agent_name.split()[0]} AI Solutions"
+    provider_url = f"https://{agent_data.get('agent_id', 'unknown')}.agentmarketplace.com"
+    
+    # Create the agent card
+    agent_card = {
+        "name": agent_name,
+        "description": agent_data.get("description", "AI agent providing specialized services"),
+        "url": agent_data.get("agent_url", f"agent2agent://{agent_data.get('agent_id', 'unknown')}.agentmarketplace.com/connect"),
+        "provider": {
+            "organization": provider_org,
+            "url": provider_url
+        },
+        "iconUrl": f"{provider_url}/icon.png",
+        "version": "1.0.0",
+        "documentationUrl": f"{provider_url}/docs",
+        "capabilities": {
+            "streaming": random.choice([True, False]),
+            "pushNotifications": random.choice([True, False]),
+            "stateTransitionHistory": random.choice([True, False])
+        },
+        "securitySchemes": {
+            "google": {
+                "type": "openIdConnect",
+                "openIdConnectUrl": "https://accounts.google.com/.well-known/openid-configuration"
+            }
+        },
+        "security": [{"google": ["openid", "profile", "email"]}],
+        "defaultInputModes": ["application/json", "text/plain"],
+        "defaultOutputModes": ["application/json", "text/plain"],
+        "skills": skills,
+        "supportsAuthenticatedExtendedCard": True,
+        "pricing": {
+            "model": "token_based",
+            "cost_per_request": agent_data.get("agent_pricing", 0.1),
+            "currency": "tokens"
+        },
+        "metadata": {
+            "karma": agent_data.get("karma", 1000),
+            "capabilities_list": agent_data.get("capabilities", []),
+            "created_at": "2024-01-01T00:00:00Z",
+            "last_updated": "2024-01-01T00:00:00Z"
+        }
+    }
+    
+    return agent_card
+
 def populate_firestore():
     """
-    Uploads sample agent data to Firestore with simplified structure.
+    Uploads sample agent data to Firestore with simplified structure and agent cards.
     """
     try:
         initialize_services()
@@ -181,14 +349,21 @@ def populate_firestore():
         for agent_data in sample_agents:
             print(f"\nProcessing agent: {agent_data['agent_id']}...")
             
-            # Upload the agent document to Firestore
+            # Upload the main agent document to Firestore
             doc_ref = agents_collection.document(agent_data['agent_id'])
             doc_ref.set(agent_data)
             
             print(f"-> Successfully uploaded '{agent_data['agent_id']}' to Firestore.")
+            
+            # Generate and upload agent card as sub-collection
+            agent_card = generate_agent_card(agent_data)
+            agent_card_ref = doc_ref.collection('agent_cards').document('card')
+            agent_card_ref.set(agent_card)
+            
+            print(f"-> Successfully uploaded agent card for '{agent_data['agent_id']}'.")
 
         print("\n-----------------------------------------")
-        print("✅ All sample agents have been populated in Firestore with simplified structure.")
+        print("✅ All sample agents and agent cards have been populated in Firestore.")
         print("\n📋 Database Structure:")
         print("   - agent_id: Unique identifier for the agent")
         print("   - agent_name: Human-readable name of the agent")
@@ -197,6 +372,8 @@ def populate_firestore():
         print("   - agent_url: Agent2Agent protocol URL for connection")
         print("   - agent_pricing: Token-based pricing (tokens per request)")
         print("   - karma: Reddit-style karma score (150-2500)")
+        print("   - agent_cards (sub-collection): Google agent2agent protocol formatted cards")
+        print("     └── card: Full agent card with skills, capabilities, security, etc.")
         print("\n📋 NEXT STEPS:")
         print("1. Create Firebase indices for effective search:")
         print("\n   🔍 SINGLE FIELD INDICES (for basic filtering/sorting):")
@@ -209,36 +386,18 @@ def populate_firestore():
         print("   - capabilities + karma (DESC) - popular agents with specific skills")
         print("   - capabilities + agent_pricing (ASC) - cheapest agents with specific skills")
         print("   - karma (DESC) + agent_pricing (ASC) - best value agents")
-        print("\n2. Firebase Console Commands:")
-        print("   # Single field indices")
-        print("   gcloud firestore indexes fields create --field-path=karma --order=DESCENDING")
-        print("   gcloud firestore indexes fields create --field-path=agent_pricing --order=ASCENDING") 
-        print("   gcloud firestore indexes fields create --field-path=agent_name --order=ASCENDING")
-        print("   gcloud firestore indexes fields create --field-path=capabilities --array-config")
-        print("\n   # Composite indices")
-        print("   gcloud firestore indexes composite create --project=agent-marketplace-c93af \\")
-        print("     --collection-group=agents \\")
-        print("     --field-config=field-path=capabilities,array-config=CONTAINS \\")
-        print("     --field-config=field-path=karma,order=DESCENDING")
-        print("\n   gcloud firestore indexes composite create --project=agent-marketplace-c93af \\")
-        print("     --collection-group=agents \\")
-        print("     --field-config=field-path=capabilities,array-config=CONTAINS \\")
-        print("     --field-config=field-path=agent_pricing,order=ASCENDING")
-        print("\n   gcloud firestore indexes composite create --project=agent-marketplace-c93af \\")
-        print("     --collection-group=agents \\")
-        print("     --field-config=field-path=karma,order=DESCENDING \\")
-        print("     --field-config=field-path=agent_pricing,order=ASCENDING")
+        print("\n2. Agent Card Features:")
+        print("   - Google agent2agent protocol compliant")
+        print("   - Skills mapped from capabilities with examples")
+        print("   - Security schemes and authentication")
+        print("   - Streaming and notification capabilities")
+        print("   - Comprehensive metadata and documentation")
         print("\n3. Common Search Query Examples:")
         print("   - Find data analysis agents: where('capabilities', 'array-contains', 'data_analysis')")
         print("   - Budget agents: where('agent_pricing', '<=', 0.10)")
         print("   - Top rated: orderBy('karma', 'desc').limit(10)")
-        print("   - Best value data agents: where('capabilities', 'array-contains', 'data_analysis')")
-        print("                            .orderBy('karma', 'desc').orderBy('agent_pricing', 'asc')")
-        print("\n4. ⚠️  TEXT SEARCH LIMITATION:")
-        print("   - Firestore doesn't support full-text search on 'description' field")
-        print("   - Consider: Algolia, Elasticsearch, or Cloud Search for description search")
-        print("   - Alternative: Use client-side filtering for simple description searches")
-        print("\n✅ Your agent marketplace search infrastructure is ready!")
+        print("   - Agent cards: agents/{agent_id}/agent_cards/card")
+        print("\n✅ Your agent marketplace with agent2agent protocol support is ready!")
         print("-----------------------------------------")
 
     except Exception as e:
