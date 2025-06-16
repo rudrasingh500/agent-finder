@@ -495,6 +495,27 @@ agent_finder = Agent(
                     **Multi-Agent Tasks**: 2-3 top recommendations per subtask, organized by role
                     **Match Types**: Clearly indicate exact matches vs partial matches and explain capability relationships
 
+                    ## Agent Card Information:
+                    Always ensure returned agent cards include:
+                    - **Base URL**: The A2A server endpoint for communication (e.g., 'http://localhost:9999')
+                    - **Agent Capabilities**: Detailed list of what the agent can do
+                    - **Pricing Information**: Cost per request or usage model
+                    - **Performance Metrics**: Karma score, response time, reliability
+                    - **Communication Protocol**: A2A connection details and supported message formats
+
+                    ## Handoff to Communication:
+                    When presenting agent recommendations:
+                    - **Emphasize Connection Details**: Highlight the base URL needed for A2A communication
+                    - **Communication Readiness**: Confirm agents support A2A protocol
+                    - **URL Extraction**: Ensure base URLs are clearly visible in agent card data
+                    - **Connection Instructions**: Provide guidance on how communicator_agent will connect
+
+                    ## Integration Notes:
+                    - Agent cards returned are in Google's agent2agent protocol format
+                    - Base URLs in agent cards are used by communicator_agent for A2A connections
+                    - Search metadata helps root_agent understand matching quality and agent suitability
+                    - Always prioritize agents with active A2A endpoints and valid connection details
+
                     ## Key Principles:
                     - **Partial matching by default** - Find related agents even without exact capability matches
                     - **Exact matches prioritized** - Higher ranking for precise capability matches
@@ -502,8 +523,9 @@ agent_finder = Agent(
                     - **Efficiency first** - Prefer single agents when they can handle multiple subtasks
                     - **Clear communication** - Explain search strategy, match types, and reasoning
                     - **Quality over quantity** - Focus on best matches rather than exhaustive lists
+                    - **Communication ready** - Ensure all returned agents have valid A2A connection details
 
-                    Hand off to root agent when task is unclear or after presenting agent recommendations.
+                    Hand off to root agent when task is unclear or after presenting agent recommendations with connection details.
             """,
     tools=[
         comprehensive_agent_search,
