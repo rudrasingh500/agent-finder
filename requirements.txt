@@ -1,8 +1,50 @@
-firebase-admin
+# Core Google ADK and Agent Framework
 google-adk
-yfinance
-psutil
-litellm
 google-generativeai
+
+# Firebase and Database
+firebase-admin
+
+# Agent-to-Agent Communication
+python-a2a[all]
+
+# HTTP and Networking
+httpx
+requests
+
+# AI and ML Libraries  
+litellm
+
+# Financial Data (for financial agents)
+yfinance
+
+# System Utilities
+psutil
+
+# Environment and Configuration
 python-dotenv
 deprecated
+
+# Type Hints and Development
+typing-extensions
+
+# Data Processing
+pandas
+numpy
+
+# Async Support
+asyncio
+aiofiles
+
+# Logging and Monitoring
+structlog
+
+# Testing (optional, uncomment if needed)
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# pytest-mock>=3.11.0
+
+# Development tools (optional, uncomment if needed)
+# black>=23.0.0
+# flake8>=6.0.0
+# mypy>=1.5.0
